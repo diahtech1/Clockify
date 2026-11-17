@@ -1198,6 +1198,70 @@ a {
   overflow: hidden;
 }
 
+.notification-settings {
+  margin-top: 28px;
+}
+
+.notification-settings-card {
+  padding: 22px;
+}
+
+.notification-pref-form {
+  display: grid;
+  gap: 18px;
+}
+
+.notification-pref-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  border: 0;
+}
+
+.notification-pref-form legend {
+  width: 100%;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.notification-pref-form label,
+.notification-pref-form fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--t2);
+}
+
+.notification-pref-form input[type="checkbox"] {
+  accent-color: var(--success);
+}
+
+.notification-pref-note {
+  color: var(--t2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notification-quiet-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-quiet-hours input {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--b2);
+  border-radius: var(--r-sm);
+  color: var(--t1);
+  font: inherit;
+}
+
+.notification-pref-form .btn-primary {
+  justify-self: start;
+}
+
 .history-list {
   display: flex;
   flex-direction: column;

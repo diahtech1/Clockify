@@ -174,6 +174,7 @@ def _create_tables(cursor):
             longitude DOUBLE PRECISION NOT NULL,
             radius_meters DOUBLE PRECISION NOT NULL,
             work_start_time TEXT DEFAULT '09:00',
+            work_end_time TEXT DEFAULT '17:00',
             updated_at TEXT NOT NULL
         )""")
     cursor.execute(f"""
@@ -193,12 +194,69 @@ def _create_tables(cursor):
             is_late INTEGER DEFAULT 0,
             notes TEXT
         )""")
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS notification_preferences (
+            id {id_col},
+            employee_id INTEGER UNIQUE NOT NULL REFERENCES employees(id),
+            channels TEXT NOT NULL DEFAULT '["email"]',
+            quiet_start TEXT,
+            quiet_end TEXT,
+            marketing_opt_in INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        )""")
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id {id_col},
+            recipient_id INTEGER NOT NULL REFERENCES employees(id),
+            channel TEXT NOT NULL,
+            template TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'operational',
+            payload TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            next_attempt_at TEXT NOT NULL,
+            sent_at TEXT,
+            error TEXT,
+            dedupe_key TEXT NOT NULL,
+            UNIQUE (dedupe_key, channel)
+        )""")
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS auth_failure_windows (
+            id {id_col},
+            fingerprint TEXT UNIQUE NOT NULL,
+            window_started_at TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            alert_sent INTEGER NOT NULL DEFAULT 0
+        )""")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS notifications_outbox_idx "
+        "ON notifications(status, next_attempt_at)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS notifications_recipient_idx "
+        "ON notifications(recipient_id, created_at)"
+    )
 
-    # Old SQLite files were created before the is_admin column existed: add it if missing.
-    if not IS_POSTGRES:
+    # Older databases need these additive migrations before the new routes run.
+    if IS_POSTGRES:
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'geofence_settings'"
+        )
+        geofence_columns = {row["column_name"] for row in cursor.fetchall()}
+    else:
         cursor.execute("PRAGMA table_info(employees)")
         if "is_admin" not in [col[1] for col in cursor.fetchall()]:
             cursor.execute("ALTER TABLE employees ADD COLUMN is_admin INTEGER DEFAULT 0")
+        cursor.execute("PRAGMA table_info(geofence_settings)")
+        geofence_columns = {col[1] for col in cursor.fetchall()}
+
+    if "work_end_time" not in geofence_columns:
+        cursor.execute(
+            "ALTER TABLE geofence_settings ADD COLUMN work_end_time TEXT DEFAULT '17:00'"
+        )
 
 
 def _seed(cursor):
@@ -209,9 +267,9 @@ def _seed(cursor):
     if cursor.fetchone()[0] == 0:
         w = DEFAULT_WORKPLACE
         cursor.execute("""INSERT INTO geofence_settings
-                          (name, latitude, longitude, radius_meters, work_start_time, updated_at)
-                          VALUES (?, ?, ?, ?, ?, ?)""",
-                       (w["name"], w["latitude"], w["longitude"], w["radius_meters"], w["work_start_time"], now))
+                          (name, latitude, longitude, radius_meters, work_start_time, work_end_time, updated_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                       (w["name"], w["latitude"], w["longitude"], w["radius_meters"], w["work_start_time"], w["work_end_time"], now))
 
     # 2. Staff: fill an empty table, or repair an older database
     cursor.execute("SELECT COUNT(*) FROM employees")

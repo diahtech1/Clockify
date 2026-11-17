@@ -35,7 +35,8 @@ DEFAULT_WORKPLACE = {
     "latitude": 6.509309,     # 14 Montgomery Road, Yaba, Lagos, Nigeria
     "longitude": 3.374993,
     "radius_meters": 150.0,   # Allowed perimeter in meters
-    "work_start_time": "09:00" # After 09:00 is marked Late
+    "work_start_time": "09:00", # After 09:00 is marked Late
+    "work_end_time": "17:00",
 }
 
 # Admin Security & Access Control

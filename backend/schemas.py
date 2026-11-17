@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Literal, Optional, List
 
 # Geolocation Coordinates Payload
 class GeoCoordinates(BaseModel):
@@ -27,6 +27,33 @@ class GeofenceUpdate(BaseModel):
     longitude: float = Field(..., ge=-180.0, le=180.0)
     radius_meters: float = Field(..., gt=0.0, description="Radius boundary in meters")
     work_start_time: Optional[str] = "09:00"
+    work_end_time: Optional[str] = "17:00"
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    channels: List[Literal["email", "sms", "push"]] = Field(default_factory=lambda: ["email"])
+    quiet_start: Optional[str] = None
+    quiet_end: Optional[str] = None
+    marketing_opt_in: bool = False
+
+    @field_validator("quiet_start", "quiet_end")
+    @classmethod
+    def validate_quiet_time(cls, value):
+        if value is not None:
+            from datetime import datetime
+            try:
+                datetime.strptime(value, "%H:%M")
+            except ValueError as exc:
+                raise ValueError("Quiet hours must use 24-hour HH:MM format.") from exc
+        return value
+
+    @model_validator(mode="after")
+    def validate_quiet_hours(self):
+        if (self.quiet_start is None) != (self.quiet_end is None):
+            raise ValueError("Set both quiet_start and quiet_end, or neither.")
+        if len(set(self.channels)) != len(self.channels):
+            raise ValueError("Notification channels must not contain duplicates.")
+        return self
 
 # Employee Creation
 class EmployeeCreate(BaseModel):
@@ -50,5 +77,4 @@ class AdminLoginRequest(BaseModel):
 class EmployeeLoginRequest(BaseModel):
     identifier: str = Field(..., description="Employee Staff ID, email, or full name")
     pin: str = Field(..., description="Employee security PIN")
-
 

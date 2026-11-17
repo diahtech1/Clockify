@@ -43,6 +43,7 @@ const adminElements = {
   workplaceLon: document.getElementById("workplaceLon"),
   workplaceRadius: document.getElementById("workplaceRadius"),
   workStartTime: document.getElementById("workStartTime"),
+  workEndTime: document.getElementById("workEndTime"),
   btnSaveGeofence: document.getElementById("btnSaveGeofence"),
   btnUseCurrentGps: document.getElementById("btnUseCurrentGps"),
   geofenceSaveText: document.getElementById("geofenceSaveText"),
@@ -252,6 +253,7 @@ async function loadGeofenceSettings() {
     if (adminElements.workplaceLon) adminElements.workplaceLon.value = savedLocal.longitude;
     if (adminElements.workplaceRadius) adminElements.workplaceRadius.value = savedLocal.radius_meters || 150;
     if (adminElements.workStartTime) adminElements.workStartTime.value = savedLocal.work_start_time || "09:00";
+    if (adminElements.workEndTime) adminElements.workEndTime.value = savedLocal.work_end_time || "17:00";
     if (adminElements.geofenceSaveText) {
       adminElements.geofenceSaveText.textContent = `Permanent perimeter active: ${Number(savedLocal.latitude).toFixed(5)}, ${Number(savedLocal.longitude).toFixed(5)}`;
     }
@@ -273,6 +275,7 @@ async function loadGeofenceSettings() {
       if (adminElements.workplaceLon) adminElements.workplaceLon.value = geo.longitude;
       if (adminElements.workplaceRadius) adminElements.workplaceRadius.value = geo.radius_meters;
       if (adminElements.workStartTime) adminElements.workStartTime.value = geo.work_start_time || "09:00";
+      if (adminElements.workEndTime) adminElements.workEndTime.value = geo.work_end_time || "17:00";
     }
   } catch (err) {
     console.error("Failed to load geofence:", err);
@@ -512,6 +515,7 @@ function setupAdminListeners() {
         const radius = parseFloat(adminElements.workplaceRadius.value);
         const name = adminElements.workplaceName.value.trim() || "Workplace Headquarters";
         const startTime = adminElements.workStartTime.value || "09:00";
+        const endTime = adminElements.workEndTime.value || "17:00";
 
         if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
           showToast("Please enter valid latitude, longitude, and radius values.", "error");
@@ -523,7 +527,8 @@ function setupAdminListeners() {
           latitude: lat,
           longitude: lon,
           radius_meters: radius,
-          work_start_time: startTime
+          work_start_time: startTime,
+          work_end_time: endTime
         };
 
         await ApiClient.updateGeofence(payload);
@@ -552,7 +557,8 @@ function setupAdminListeners() {
           latitude: pos.latitude,
           longitude: pos.longitude,
           radius_meters: parseFloat(adminElements.workplaceRadius.value) || 150,
-          work_start_time: adminElements.workStartTime.value || "09:00"
+          work_start_time: adminElements.workStartTime.value || "09:00",
+          work_end_time: adminElements.workEndTime.value || "17:00"
         };
 
         await ApiClient.updateGeofence(payload);

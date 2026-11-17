@@ -101,6 +101,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Recent Activity
         </a>
+        <a href="#notificationSettings" class="side-nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+          Notifications
+        </a>
 
         <hr class="side-nav-divider">
 
@@ -207,6 +211,34 @@
                 <p class="empty-msg">No attendance records yet.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="history-section notification-settings" id="notificationSettings">
+          <div class="history-head">
+            <h2 class="history-title">Notification Preferences</h2>
+          </div>
+          <div class="history-card notification-settings-card">
+            <form id="notificationPreferencesForm" class="notification-pref-form">
+              <fieldset>
+                <legend>Operational channels</legend>
+                <label><input type="checkbox" name="notificationChannel" value="email"> Email</label>
+                <label><input type="checkbox" name="notificationChannel" value="sms"> SMS</label>
+                <label><input type="checkbox" name="notificationChannel" value="push"> Push</label>
+              </fieldset>
+              <p class="notification-pref-note">Operational attendance and security alerts are separate from marketing messages. SMS and push delivery also require a contact or device profile configured in Knock.</p>
+              <div class="notification-quiet-hours">
+                <label for="quietHoursStart">Quiet hours start</label>
+                <input id="quietHoursStart" type="time">
+                <label for="quietHoursEnd">Quiet hours end</label>
+                <input id="quietHoursEnd" type="time">
+              </div>
+              <label class="notification-marketing">
+                <input id="marketingOptIn" type="checkbox">
+                Allow non-operational marketing messages
+              </label>
+              <button type="submit" id="btnSaveNotificationPreferences" class="btn-primary">Save Preferences</button>
+            </form>
           </div>
         </section>
 

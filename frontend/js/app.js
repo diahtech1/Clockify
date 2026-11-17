@@ -54,6 +54,11 @@ const elements = {
   // History
   historyList:   document.getElementById('historyList'),
   historyCount:  document.getElementById('historyCount'),
+  notificationPreferencesForm: document.getElementById('notificationPreferencesForm'),
+  quietHoursStart: document.getElementById('quietHoursStart'),
+  quietHoursEnd: document.getElementById('quietHoursEnd'),
+  marketingOptIn: document.getElementById('marketingOptIn'),
+  btnSaveNotificationPreferences: document.getElementById('btnSaveNotificationPreferences'),
   toastContainer: document.getElementById('toastContainer')
 };
 
@@ -106,7 +111,22 @@ async function showPersonalDashboard() {
 
   renderEmployeeProfile();
   await refreshShiftData();
+  await loadNotificationPreferences();
   queryLiveLocation();
+}
+
+async function loadNotificationPreferences() {
+  try {
+    const preferences = await ApiClient.getNotificationPreferences();
+    document.querySelectorAll('input[name="notificationChannel"]').forEach((input) => {
+      input.checked = preferences.channels.includes(input.value);
+    });
+    if (elements.quietHoursStart) elements.quietHoursStart.value = preferences.quiet_start || "";
+    if (elements.quietHoursEnd) elements.quietHoursEnd.value = preferences.quiet_end || "";
+    if (elements.marketingOptIn) elements.marketingOptIn.checked = preferences.marketing_opt_in;
+  } catch (err) {
+    showToast(`Could not load notification preferences: ${err.message}`, "error");
+  }
 }
 
 // Show Login Gate when unauthenticated
@@ -421,6 +441,36 @@ async function handleClockOut() {
 
 // Event Listeners & Auth Handlers
 function setupEventListeners() {
+  if (elements.notificationPreferencesForm) {
+    elements.notificationPreferencesForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const quietStart = elements.quietHoursStart.value || null;
+      const quietEnd = elements.quietHoursEnd.value || null;
+      if ((quietStart === null) !== (quietEnd === null)) {
+        showToast("Set both quiet-hours times, or leave both empty.", "error");
+        return;
+      }
+
+      const channels = Array.from(
+        document.querySelectorAll('input[name="notificationChannel"]:checked')
+      ).map((input) => input.value);
+      elements.btnSaveNotificationPreferences.disabled = true;
+      try {
+        await ApiClient.updateNotificationPreferences({
+          channels,
+          quiet_start: quietStart,
+          quiet_end: quietEnd,
+          marketing_opt_in: elements.marketingOptIn.checked
+        });
+        showToast("Notification preferences saved.", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        elements.btnSaveNotificationPreferences.disabled = false;
+      }
+    });
+  }
+
   // 1. Selector dropdown changes: auto-fill Staff ID
   if (elements.loginEmployeeSelect) {
     elements.loginEmployeeSelect.addEventListener('change', (e) => {

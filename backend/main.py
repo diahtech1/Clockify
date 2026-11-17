@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 
 from backend.config import FRONTEND_DIR
 from backend.database import init_db
-from backend.routers import auth, employees, attendance, admin
+from backend.routers import auth, employees, attendance, admin, notifications
 
 # Initialize FastAPI App
 app = FastAPI(
@@ -40,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(employees.router)
 app.include_router(attendance.router)
 app.include_router(admin.router)
+app.include_router(notifications.router)
 
 # Serve Frontend Static Assets
 if os.path.exists(FRONTEND_DIR):

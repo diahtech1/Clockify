@@ -7,6 +7,7 @@ from backend.schemas import ClockInRequest, ClockOutRequest
 from backend.services.geofence import verify_geofence
 from backend.models import AttendanceModel
 from backend.routers.auth import require_employee
+from backend.services.notifications import enqueue_admin_notification
 
 router = APIRouter(prefix="/api/attendance", tags=["Attendance"])
 
@@ -134,8 +135,30 @@ def clock_in(payload: ClockInRequest, employee_id: int = Depends(require_employe
             "Arrived within geofence perimeter",
         ),
     )
-    conn.commit()
     new_record_id = cursor.lastrowid
+
+    if is_late:
+        enqueue_admin_notification(
+            cursor,
+            "late_arrival_alert",
+            {
+                "message": "A late arrival was recorded. Review attendance exceptions.",
+                "date": today_str,
+                "link": "/admin",
+            },
+            f"late-arrival:{new_record_id}",
+            now,
+        )
+
+    cursor.execute(
+        """
+        UPDATE notifications
+        SET status = 'cancelled', updated_at = ?
+        WHERE recipient_id = ? AND dedupe_key = ?
+          AND status IN ('pending', 'retrying')
+        """,
+        (now.isoformat(), employee_id, f"missed-clock-in:{employee_id}:{today_str}"),
+    )
 
     cursor.execute(
         """
@@ -147,6 +170,7 @@ def clock_in(payload: ClockInRequest, employee_id: int = Depends(require_employe
         (new_record_id,),
     )
     created_record = cursor.fetchone()
+    conn.commit()
     conn.close()
 
     return {
@@ -219,6 +243,19 @@ def clock_out(payload: ClockOutRequest, employee_id: int = Depends(require_emplo
         WHERE id = ?
         """,
         (now_time, payload.latitude, payload.longitude, geo_check["distance_meters"], record["id"]),
+    )
+    cursor.execute(
+        """
+        UPDATE notifications
+        SET status = 'cancelled', updated_at = ?
+        WHERE recipient_id = ? AND dedupe_key = ?
+          AND status IN ('pending', 'retrying')
+        """,
+        (
+            get_now().isoformat(),
+            employee_id,
+            f"missing-clock-out:{employee_id}:{today_str}",
+        ),
     )
     conn.commit()
 

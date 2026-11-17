@@ -149,6 +149,14 @@ const ApiClient = {
     return this.post("/api/attendance/clock-out", { latitude, longitude, accuracy });
   },
 
+  getNotificationPreferences() {
+    return this.get("/api/notifications/preferences");
+  },
+
+  updateNotificationPreferences(payload) {
+    return this.put("/api/notifications/preferences", payload);
+  },
+
   // Admin Endpoints
   getGeofence() {
     return this.get("/api/admin/geofence");

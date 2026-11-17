@@ -12,6 +12,7 @@ from backend.security import (
     verify_employee_token,
     verify_pin,
 )
+from backend.services.notifications import record_failed_login
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -120,12 +121,14 @@ def employee_login(payload: EmployeeLoginRequest):
     conn.close()
 
     if not row:
+        record_failed_login(identifier)
         raise HTTPException(
             status_code=404,
             detail="Employee profile not found. Please check your Staff ID (e.g. EMP001) or Email.",
         )
 
     if not verify_pin(pin, row["pin"]):
+        record_failed_login(identifier)
         raise HTTPException(status_code=401, detail="Invalid security PIN.")
 
     return {
@@ -179,6 +182,7 @@ def admin_login(payload: AdminLoginRequest):
     conn.close()
 
     if not emp or not verify_pin(pin, emp["pin"]):
+        record_failed_login(username)
         raise HTTPException(status_code=401, detail="Invalid administrator credentials.")
 
     if emp["is_admin"] != 1:

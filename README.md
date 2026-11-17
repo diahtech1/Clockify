@@ -117,3 +117,57 @@ python run.py
 5. Notice the radar badge change to **"Inside Workplace"** with your calculated distance (e.g. `4m away`).
 6. Click **"Clock In Now"**. Your attendance, timestamp, and punctuality are logged!
 7. Return to the Admin Portal to view your real-time log, summary metrics, or export to CSV.
+
+## 🔔 Operational Notifications
+
+Notifications are written to the database outbox during the application transaction and
+delivered by a separate scheduled worker. Clock-in/out requests never call Knock or a
+mail/SMS provider. The scheduler is idempotent and can safely run once per minute.
+
+### Configure Knock
+
+Create Knock workflows for each enabled template/channel pair and configure the desired
+email, SMS, or push provider in Knock. Set the following server-side environment variables:
+
+```text
+KNOCK_API_KEY=<server-side Knock API key>
+NOTIFICATION_JOB_KEY=<random secret used only by the scheduled job>
+KNOCK_WORKFLOW_MISSED_CLOCK_IN_EMAIL=<Knock workflow key>
+KNOCK_WORKFLOW_MISSING_CLOCK_OUT_EMAIL=<Knock workflow key>
+KNOCK_WORKFLOW_SHIFT_STARTS_SOON_EMAIL=<Knock workflow key>
+KNOCK_WORKFLOW_MANAGER_DAILY_DIGEST_EMAIL=<Knock workflow key>
+```
+
+Workflow variables follow `KNOCK_WORKFLOW_<TEMPLATE>_<CHANNEL>`, where template names
+are uppercase versions of the keys in `backend/services/notifications.py` and channel is
+`EMAIL`, `SMS`, or `PUSH`. Add a workflow variable for every template/channel combination
+you intend to deliver. Knock recipients are provisioned with the employee's name and
+email; notification bodies contain only operational text, aggregate digest counts, and
+links back to the authenticated app. Do not put GPS, face, PIN, or attendance location
+data in workflow templates.
+
+Set `KNOCK_API_KEY` and workflow keys only in the server/hosted scheduler secret store,
+never in frontend code or committed files. A separate `NOTIFICATION_JOB_KEY` must be
+sent as the `X-Notification-Job-Key` header when invoking the scheduler endpoint.
+This outbound-only integration does not currently use `KNOCK_SIGNING_KEY`; that key is
+for validating Knock webhook callbacks if a callback endpoint is added later.
+
+### Schedule and operate the worker
+
+Prefer running `python -m backend.services.notifications` as a separate scheduled
+process once per minute; this keeps provider I/O out of the web application's request
+workers. It queues 15-minute shift reminders,
+missed-clock-in alerts (five minutes after shift start), missing-clock-out alerts,
+and daily/weekly admin digests, then processes up to 100 due outbox messages. The
+workday start/end are configurable in the Admin Console; end time defaults to 17:00.
+If the hosting platform only supports HTTP schedules, call
+`POST /api/notifications/jobs/run` once per minute with the
+`X-Notification-Job-Key` header; set `NOTIFICATION_JOB_KEY` only for that mode.
+
+Failures are retried with exponential backoff and move to a dead-letter state after five
+attempts. Administrators can inspect and manually requeue dead letters at
+`GET /api/notifications/admin/dead-letter` and
+`POST /api/notifications/admin/dead-letter/{id}/retry`. Employees can view/update their
+own preferences through `GET/PUT /api/notifications/preferences` and list deliveries
+through `GET /api/notifications`. Preferences select channels and quiet hours; marketing
+consent is a separate setting from operational notifications.

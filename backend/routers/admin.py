@@ -27,6 +27,7 @@ from backend.services.reports import (
     validate_date_range,
     VALID_STATUSES,
 )
+from backend.services.notifications import enqueue_admin_notification
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -57,19 +58,38 @@ def update_geofence(payload: GeofenceUpdate):
     Changes take effect immediately — clock-in/out validation reads the
     latest saved settings on every request.
     """
-    # Validate shift start time format (24h HH:MM)
+    # Validate shift times format (24h HH:MM)
     work_start_time = payload.work_start_time or "09:00"
-    try:
-        datetime.strptime(work_start_time, "%H:%M")
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid work_start_time '{work_start_time}'. Expected 24-hour format HH:MM (e.g. 09:00)."
-        )
+    work_end_time = payload.work_end_time or "17:00"
+    for field, value in (("work_start_time", work_start_time), ("work_end_time", work_end_time)):
+        try:
+            datetime.strptime(value, "%H:%M")
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid {field} '{value}'. Expected 24-hour format HH:MM (e.g. 09:00)."
+            )
 
     conn = get_db()
     cursor = conn.cursor()
     now = get_now().isoformat()
+    cursor.execute("SELECT * FROM geofence_settings ORDER BY id DESC LIMIT 1")
+    previous = cursor.fetchone()
+    updated_values = (
+        payload.name or "Workplace Headquarters",
+        payload.latitude,
+        payload.longitude,
+        payload.radius_meters,
+        work_start_time,
+        work_end_time,
+    )
+    changed = previous is None or any(
+        previous[key] != value
+        for key, value in zip(
+            ("name", "latitude", "longitude", "radius_meters", "work_start_time", "work_end_time"),
+            updated_values,
+        )
+    )
 
     cursor.execute("""
         UPDATE geofence_settings
@@ -78,31 +98,33 @@ def update_geofence(payload: GeofenceUpdate):
             longitude = ?,
             radius_meters = ?,
             work_start_time = ?,
+            work_end_time = ?,
             updated_at = ?
         WHERE id = (SELECT id FROM geofence_settings ORDER BY id DESC LIMIT 1)
-    """, (
-        payload.name or "Workplace Headquarters",
-        payload.latitude,
-        payload.longitude,
-        payload.radius_meters,
-        work_start_time,
-        now
-    ))
+    """, (*updated_values, now))
 
     # If no settings row existed yet, seed the first configuration (CRUD upsert)
     if cursor.rowcount == 0:
         cursor.execute("""
             INSERT INTO geofence_settings
-                (name, latitude, longitude, radius_meters, work_start_time, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (name, latitude, longitude, radius_meters, work_start_time, work_end_time, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
-            payload.name or "Workplace Headquarters",
-            payload.latitude,
-            payload.longitude,
-            payload.radius_meters,
-            work_start_time,
-            now
+            *updated_values,
+            now,
         ))
+
+    if changed:
+        enqueue_admin_notification(
+            cursor,
+            "geofence_changed",
+            {
+                "message": "The workplace geofence settings changed. Review the admin console.",
+                "link": "/admin",
+            },
+            f"geofence-changed:{now}",
+            get_now(),
+        )
 
     conn.commit()
 
@@ -264,6 +286,7 @@ def download_attendance_csv(
         raise HTTPException(status_code=422, detail=str(exc))
 
     filename = _export_filename("csv", day, start, end)
+    _queue_export_alert()
 
     return StreamingResponse(
         stream_attendance_csv(
@@ -294,11 +317,33 @@ def download_attendance_json(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    _queue_export_alert()
     return export_attendance_json(
         date=day, start_date=start, end_date=end,
         employee_id=employee_id, department=department,
         status=normalized_status, late_only=late_only
     )
+
+
+def _queue_export_alert():
+    """Queue an audit alert without including exported records or personal data."""
+    now = get_now()
+    conn = get_db()
+    try:
+        cursor = conn.cursor()
+        enqueue_admin_notification(
+            cursor,
+            "payroll_exported",
+            {
+                "message": "An attendance data export was requested. Review the admin console.",
+                "link": "/admin",
+            },
+            f"attendance-export:{now.isoformat()}",
+            now,
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------

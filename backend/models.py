@@ -56,5 +56,6 @@ class GeofenceModel:
             "longitude": row["longitude"],
             "radius_meters": row["radius_meters"],
             "work_start_time": row["work_start_time"],
+            "work_end_time": row["work_end_time"] if "work_end_time" in row.keys() else "17:00",
             "updated_at": row["updated_at"]
         }
